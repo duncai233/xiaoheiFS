@@ -674,10 +674,10 @@ func validatePluginConfigJSON(raw string) error {
 		return nil
 	}
 	if isDoubleEncodedContainerJSON(trimmed) {
-		return fmt.Errorf("config_json contains double-encoded json")
+		return fmt.Errorf("%w: config_json contains double-encoded json", domain.ErrInvalidInput)
 	}
 	if !json.Valid([]byte(trimmed)) {
-		return fmt.Errorf("config_json expects valid json")
+		return fmt.Errorf("%w: config_json expects valid json", domain.ErrInvalidInput)
 	}
 	return nil
 }
