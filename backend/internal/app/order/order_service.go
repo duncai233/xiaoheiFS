@@ -2336,12 +2336,23 @@ func (s *OrderService) CreateRenewOrder(ctx context.Context, userID int64, vpsID
 	if months <= 0 {
 		months = 1
 	}
+	maxInt := int(^uint(0) >> 1)
+	if months > maxInt/30 {
+		return domain.Order{}, ErrInvalidInput
+	}
 	renewDays = months * 30
 	monthlyPrice := inst.MonthlyPrice
 	if monthlyPrice < 0 {
 		return domain.Order{}, ErrInvalidInput
 	}
+	maxInt64 := int64(^uint64(0) >> 1)
+	if monthlyPrice > 0 && int64(months) > maxInt64/monthlyPrice {
+		return domain.Order{}, ErrInvalidInput
+	}
 	amount := monthlyPrice * int64(months)
+	if amount < 0 {
+		return domain.Order{}, ErrInvalidInput
+	}
 	if renewDays <= 0 {
 		renewDays = 30
 	}
