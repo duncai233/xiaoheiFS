@@ -46,6 +46,7 @@ import { setPageTitle } from '@/utils/router'
 import { RoutesAlias } from '../routesAlias'
 import { staticRoutes } from '../routes/staticRoutes'
 import { loadingService } from '@/utils/ui'
+import { useAppMode } from '@/hooks/core/useAppMode'
 import { useCommon } from '@/hooks/core/useCommon'
 import { useWorktabStore } from '@/store/modules/worktab'
 import { fetchGetUserInfo } from '@/api/auth'
@@ -148,17 +149,19 @@ async function handleRouteGuard(
   const settingStore = useSettingStore()
   const userStore = useUserStore()
   const installStore = useInstallStore()
+  const installStatusPromise = installStore.fetchStatus()
+  const adminPathPromise = ensureCurrentAdminPath()
 
   // 启动进度条
   if (settingStore.showNprogress) {
     NProgress.start()
   }
 
-  await ensureCurrentAdminPath()
-
-  if (!(await handleInstallStatus(to, installStore, next))) {
+  if (!(await handleInstallStatus(to, next, installStatusPromise))) {
     return
   }
+
+  await adminPathPromise
 
   // 1. 检查登录状态
   if (!handleLoginStatus(to, userStore, next)) {
@@ -208,14 +211,12 @@ async function handleRouteGuard(
 
 async function handleInstallStatus(
   to: RouteLocationNormalized,
-  installStore: ReturnType<typeof useInstallStore>,
-  next: NavigationGuardNext
+  next: NavigationGuardNext,
+  installStatusPromise: Promise<boolean>
 ): Promise<boolean> {
-  if (!installStore.loaded) {
-    await installStore.fetchStatus()
-  }
+  const installed = await installStatusPromise
 
-  if (installStore.installed || to.path === RoutesAlias.Install) {
+  if (installed || to.path === RoutesAlias.Install) {
     return true
   }
 
@@ -296,10 +297,12 @@ async function handleDynamicRoutes(
 
   try {
     // 1. 获取用户信息
-    await fetchUserInfo()
+    const { isFrontendMode } = useAppMode()
 
     // 2. 获取菜单数据
-    const menuList = await menuProcessor.getMenuList()
+    const menuList = isFrontendMode.value
+      ? await fetchMenuListAfterUserInfo()
+      : await fetchUserInfoAndMenuListInParallel()
 
     // 3. 验证菜单数据
     if (!menuProcessor.validateMenuList(menuList)) {
@@ -407,6 +410,16 @@ async function fetchUserInfo(): Promise<void> {
 /**
  * 重置路由相关状态
  */
+async function fetchMenuListAfterUserInfo() {
+  await fetchUserInfo()
+  return menuProcessor.getMenuList()
+}
+
+async function fetchUserInfoAndMenuListInParallel() {
+  const [, menuList] = await Promise.all([fetchUserInfo(), menuProcessor.getMenuList()])
+  return menuList
+}
+
 export function resetRouterState(delay: number): void {
   setTimeout(() => {
     routeRegistry?.unregister()

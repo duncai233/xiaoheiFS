@@ -130,7 +130,7 @@
 
         <div v-if="mfaOtpAuthUrl && mfaSecret" class="mfa-setup-panel">
           <div class="mfa-qr-card">
-            <QrcodeVue :value="mfaOtpAuthUrl" :size="168" level="M" render-as="svg" />
+            <AsyncQrcodeVue :value="mfaOtpAuthUrl" :size="168" level="M" render-as="svg" />
           </div>
 
           <div class="mfa-secret-card">
@@ -168,8 +168,8 @@
 </template>
 
 <script setup lang="ts">
+  import { defineAsyncComponent } from 'vue'
   import { useI18n } from 'vue-i18n'
-  import QrcodeVue from 'qrcode.vue'
   import { ElMessage, ElNotification, type FormInstance, type FormRules } from 'element-plus'
   import { fetchLogin } from '@/api/auth'
   import {
@@ -193,6 +193,7 @@
   const settingStore = useSettingStore()
   const siteStore = useSiteStore()
   const userStore = useUserStore()
+  const AsyncQrcodeVue = defineAsyncComponent(() => import('qrcode.vue'))
   const router = useRouter()
   const route = useRoute()
   const { isDark } = storeToRefs(settingStore)
@@ -407,7 +408,6 @@
     }
 
     mfaLoading.confirm = true
-    let bindCompleted = false
 
     try {
       if (mfaState.bindRequired) {
@@ -417,8 +417,16 @@
         }
 
         await confirmAdminTwoFactor({ code })
-        bindCompleted = true
-        ElMessage.success('2FA 已绑定，正在完成登录')
+        mfaState.bindRequired = false
+        mfaState.required = true
+        mfaState.unlocked = false
+        mfaState.totpEnabled = true
+        mfaForm.password = ''
+        mfaForm.totpCode = ''
+        mfaSecret.value = ''
+        mfaOtpAuthUrl.value = ''
+        ElMessage.success('2FA 已绑定，请输入最新验证码完成登录')
+        return
       }
 
       const response = await unlockAdminTwoFactor({ totp_code: code })
@@ -436,17 +444,6 @@
       await router.push(redirect)
     } catch (error) {
       if (error instanceof HttpError) {
-        if (bindCompleted) {
-          mfaState.bindRequired = false
-          mfaState.required = true
-          mfaState.unlocked = false
-          mfaState.totpEnabled = true
-          mfaForm.password = ''
-          mfaForm.totpCode = ''
-          mfaSecret.value = ''
-          mfaOtpAuthUrl.value = ''
-        }
-
         return
       }
 

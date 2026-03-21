@@ -11,9 +11,56 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import tailwindcss from '@tailwindcss/vite'
 // import { visualizer } from 'rollup-plugin-visualizer'
 
+function manualChunks(id: string) {
+  const normalizedId = id.replace(/\\/g, '/')
+
+  if (
+    normalizedId.includes('/node_modules/vue/') ||
+    normalizedId.includes('/node_modules/@vue/') ||
+    normalizedId.includes('/node_modules/vue-router/') ||
+    normalizedId.includes('/node_modules/pinia/') ||
+    normalizedId.includes('/node_modules/vue-i18n/') ||
+    normalizedId.includes('/node_modules/@vueuse/') ||
+    normalizedId.includes('/node_modules/vue-demi/')
+  ) {
+    return 'vendor-framework'
+  }
+
+  if (normalizedId.includes('/node_modules/element-plus/')) {
+    return 'vendor-ui'
+  }
+
+  if (normalizedId.includes('/node_modules/xlsx/')) {
+    return 'feature-excel'
+  }
+
+  if (
+    normalizedId.includes('/node_modules/xgplayer/') ||
+    normalizedId.includes('/node_modules/vue-img-cutter/')
+  ) {
+    return 'feature-media'
+  }
+
+  if (
+    normalizedId.includes('/node_modules/@wangeditor/') ||
+    normalizedId.includes('/node_modules/@uppy/') ||
+    normalizedId.includes('/node_modules/slate/') ||
+    normalizedId.includes('/node_modules/prismjs/')
+  ) {
+    return 'vendor-editor'
+  }
+
+  if (normalizedId.includes('/node_modules/echarts/')) {
+    return 'vendor-echarts'
+  }
+
+  return undefined
+}
+
 export default ({ mode }: { mode: string }) => {
   const root = process.cwd()
   const env = loadEnv(mode, root)
+  const isDevelopment = mode === 'development'
   const {
     VITE_VERSION,
     VITE_PORT,
@@ -64,6 +111,11 @@ export default ({ mode }: { mode: string }) => {
       emptyOutDir: true,
       chunkSizeWarningLimit: 2000,
       minify: 'terser',
+      rollupOptions: {
+        output: {
+          manualChunks
+        }
+      },
       terserOptions: {
         compress: {
           // 生产环境去除 console
@@ -110,7 +162,7 @@ export default ({ mode }: { mode: string }) => {
         threshold: 10240, // 只有大小大于该值的资源会被处理 10240B = 10KB
         deleteOriginFile: false // 压缩后是否删除原文件
       }),
-      vueDevTools()
+      ...(isDevelopment ? [vueDevTools()] : [])
       // 打包分析
       // visualizer({
       //   open: true,
